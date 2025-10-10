@@ -20,6 +20,35 @@
 #define CYAN "\033[36m"       // Cyan text
 
 using namespace std;
+
+bool strCompNoCap(const char *a, const char *b)
+{
+    int lenA = strlen(a), lenB = strlen(b);
+
+    if(lenA == lenB)
+    {
+        for(int i = 0; i < lenA; ++i) 
+        {
+            int diff = abs(a[i] - b[i]);
+
+            if(diff != 0 && diff != 32)
+            {
+                return false;
+            }
+        }
+    }
+    else
+    {
+        return false;
+    }
+
+    return true;
+}
+
+// ================================================================================
+// CUSTOMER CLASS DECLARATION - REPRESENTS A CUSTOMER ITEM IN THE CAFETERIA SYSTEM
+// ================================================================================
+
 class Customer;
 
 // ============================================================================
@@ -28,7 +57,6 @@ class Customer;
 class Item
 {
 private:
-    // public:
     char name[50];     // Item name stored as fixed-size character array for binary file compatibility
     double price;      // Item price (non-negative)
     int quantity;      // Item quantity (non-negative)
@@ -238,7 +266,7 @@ int searchItem(const char *name)
 {
     for (int i = 0; i < Item::itemCount; ++i)
     {
-        if (strcmp(name, item[i].name) == 0)
+        if (strCompNoCap(name, item[i].name))
         {
             return i;
         }
@@ -538,8 +566,6 @@ void viewMenuCard(void)
 // ============================================================================
 // CUSTOMER FRIEND FUNCTIONS
 // ============================================================================
-
-// Sajib -- "Don't change it is not completed yet ........ "
 
 // take customer information
 bool bookSeat(Customer &cust, int t, int s);
