@@ -27,7 +27,7 @@ bool strCompNoCap(const char *a, const char *b)
 
     if(lenA == lenB)
     {
-        for(int i = 0; i < lenA; ++i) 
+        for(int i = 0; i < lenA; ++i)
         {
             int diff = abs(a[i] - b[i]);
 
@@ -46,7 +46,14 @@ bool strCompNoCap(const char *a, const char *b)
 }
 
 // ================================================================================
-// CUSTOMER CLASS DECLARATION - REPRESENTS A CUSTOMER ITEM IN THE CAFETERIA SYSTEM
+// MANAGER CLASS DECLARATION - REPRESENTS THE MANAGER IN THE CAFETERIA SYSTEM
+// ================================================================================
+
+class Manager;
+
+
+// ================================================================================
+// CUSTOMER CLASS DECLARATION - REPRESENTS A CUSTOMER IN THE CAFETERIA SYSTEM
 // ================================================================================
 
 class Customer;
@@ -70,7 +77,8 @@ public:
         : price(price < 0.0 ? 0.0 : price),      // Ensure price is non-negative
           quantity(quantity < 0 ? 0 : quantity), // Ensure quantity is non-negative
           availability(this->quantity > 0)
-    { // Available if quantity > 0
+    {
+        // Available if quantity > 0
         // Safely copy the name with null termination
         strncpy(this->name, name, sizeof(this->name) - 1);
         this->name[sizeof(this->name) - 1] = '\0';
@@ -91,19 +99,7 @@ public:
         cout << YELLOW "Status: " END << (availability ? BLUE "Available" : RED "Out of stock") << END << '\n';
     }
 
-    // Friend function declarations allowing external access to private members
-    friend int searchItem(const char *);
-
-    friend bool changeQuantity(const int &, const int &);
-    friend bool changeQuantity(const char *, const int &);
-
-    friend bool setPrice(const int &, const double &);
-    friend bool setPrice(const char *, const double &);
-
-    friend bool addNewItem(const char *, const double &, const int &);
-
-    friend bool discardExistingItem(int);
-    friend bool discardExistingItem(const char *);
+    friend class Manager;
 
     friend void showOrder(Customer &cust);
     friend void orderItem(Customer &cust);
@@ -117,9 +113,237 @@ public:
     friend class Customer;
 } item[1000]; // Global array storing up to 1000 menu items
 
+// Initialize static class member
+int Item::itemCount = 0;
+
+
+//nimu's part
+class Manager
+{
+public:
+    /**
+    * Searches for an item by name in the global item array
+    * @param name: Item name to search for (C-style string)
+    * @return: Index of found item, or -1 if not found
+    */
+    static int searchItem(const char *name)
+    {
+        for (int i = 0; i < Item::itemCount; ++i)
+        {
+            if (strCompNoCap(name, item[i].name))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /**
+     * Changes the quantity of an item specified by index
+     * @param i: Index of the item to modify
+     * @param addedQuantity: Amount to add to current quantity (can be negative to decrease)
+     * @return: true if successful, false if index invalid or quantity would become negative
+     */
+    static bool changeQuantity(const int &i, const int &addedQuantity)
+    {
+        if (i >= Item::itemCount || i < 0)
+        {
+            return false;
+        }
+
+        if (item[i].quantity + addedQuantity > -1)
+        {
+            item[i].quantity += addedQuantity;
+
+            item[i].availability = item[i].quantity > 0;
+
+            // Save all changes to binary file
+            ofstream file("menu.bin", ios::binary | ios::trunc);
+
+            for (int j = 0; j < Item::itemCount; ++j)
+            {
+                file.write(reinterpret_cast<const char *>(&item[j]), sizeof(Item));
+            }
+
+            file.close();
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Changes the quantity of an item specified by name
+     * @param name: Name of the item to modify
+     * @param addedQuantity: Amount to add to current quantity
+     * @return: true if successful, false if item not found or quantity invalid
+     */
+    static bool changeQuantity(const char *name, const int &addedQuantity)
+    {
+        int i = searchItem(name);
+
+        if (i == -1)
+        {
+            return false;
+        }
+
+        return changeQuantity(i, addedQuantity);
+    }
+
+    /**
+     * Sets the price of an item specified by index
+     * @param i: Index of the item to modify
+     * @param price: New price value
+     * @return: true if successful, false if index invalid
+     */
+    static bool setPrice(const int &i, const double &price)
+    {
+        if (i >= Item::itemCount || i < 0)
+        {
+            return false;
+        }
+
+        if (price < 0.0)
+        {
+            item[i].price = 0.0;
+        }
+        else
+        {
+            item[i].price = price;
+        }
+
+        // Save all changes to binary file
+        ofstream file("menu.bin", ios::binary | ios::trunc);
+
+        for (int j = 0; j < Item::itemCount; ++j)
+        {
+            file.write(reinterpret_cast<const char *>(&item[j]), sizeof(Item));
+        }
+
+        file.close();
+
+        return true;
+    }
+
+    /**
+     * Sets the price of an item specified by name
+     * @param name: Name of the item to modify
+     * @param price: New price value
+     * @return: true if successful, false if item not found
+     */
+    static bool setPrice(const char *name, const double &price)
+    {
+        int i = searchItem(name);
+
+        if (i == -1)
+        {
+            return false;
+        }
+
+        return setPrice(i, price);
+    }
+
+    /**
+     * Adds a new item to the menu system
+     * @param name: Name of the new item
+     * @param price: Price of the new item
+     * @param quantity: Initial quantity of the new item
+     * @return: true if added successfully, false if item already exists
+     */
+    static bool addNewItem(const char *name, const double &price, const int &quantity)
+    {
+        int i = searchItem(name);
+
+        if (i != -1)
+        {
+            return false;
+        }
+
+        // Initialize the new item at the current count position
+        strncpy(item[Item::itemCount].name, name, sizeof(item[Item::itemCount].name) - 1);
+        item[Item::itemCount].name[sizeof(item[Item::itemCount].name) - 1] = '\0';
+        item[Item::itemCount].price = (price < 0.0) ? 0.0 : price;
+        item[Item::itemCount].quantity = (quantity < 0) ? 0 : quantity;
+        item[Item::itemCount].availability = quantity > 0;
+
+        // Save all items (including new one) to binary file
+        ofstream file("menu.bin", ios::binary | ios::trunc);
+        if (!file.is_open())
+            return false;
+
+        for (int j = 0; j <= Item::itemCount; ++j)
+        {
+            file.write(reinterpret_cast<const char *>(&item[j]), sizeof(Item));
+        }
+
+        file.close();
+
+        ++Item::itemCount;
+
+        return true;
+    }
+
+    /**
+     * Removes an item from the system by index
+     * @param i: Index of the item to remove
+     * @return: true if removed successfully, false if index invalid
+     */
+    static bool discardExistingItem(int i)
+    {
+        if (i >= Item::itemCount || i < 0)
+        {
+            return false;
+        }
+
+        // Shift all subsequent items left to fill the gap
+        while (i + 1 < Item::itemCount)
+        {
+            item[i] = item[i + 1];
+            ++i;
+        }
+
+        // Clear the last item after shifting
+        strcpy(item[i].name, "");
+        item[i].price = 0.0;
+        item[i].quantity = 0;
+        item[i].availability = false;
+
+        --Item::itemCount;
+
+        // Save updated item list to binary file
+        ofstream file("menu.bin", ios::binary | ios::trunc);
+
+        for (int j = 0; j < Item::itemCount; ++j)
+        {
+            file.write(reinterpret_cast<const char *>(&item[j]), sizeof(Item));
+        }
+
+        file.close();
+
+        return true;
+    }
+
+    /**
+     * Removes an item from the system by name
+     * @param name: Name of the item to remove
+     * @return: true if removed successfully, false if item not found
+     */
+    static bool discardExistingItem(const char *name)
+    {
+        int i = searchItem(name);
+
+        if (i == -1)
+        {
+            return false;
+        }
+
+        return discardExistingItem(i);
+    }
+};
 // 82 - 145 > 500 - 1160 sajib part ;
 // Customer class
-
 class Customer
 {
 private:
@@ -147,7 +371,10 @@ public:
     {
         orders.push_back({itemIndex, quantity});
     }
-    void clearOrders() { orders.clear(); }
+    void clearOrders()
+    {
+        orders.clear();
+    }
     // friend funcction all
     friend void takeDetails(Customer &cust);
     friend bool bookSeat(Customer &cust, int t, int s);
@@ -244,239 +471,20 @@ public:
         file.write(reinterpret_cast<char *>(seatBooked), sizeof(seatBooked));
         file.close();
     }
+
+    friend class Manager;
 };
 int Customer::customerCount = 0;
 bool Customer::seatBooked[20][8] = {false};
 
 // end customer classs
 
-// Initialize static class member
-int Item::itemCount = 0;
 
 // ============================================================================
 // CORE UTILITY FUNCTIONS FOR ITEM MANAGEMENT
 // ============================================================================
 
-/**
- * Searches for an item by name in the global item array
- * @param name: Item name to search for (C-style string)
- * @return: Index of found item, or -1 if not found
- */
-int searchItem(const char *name)
-{
-    for (int i = 0; i < Item::itemCount; ++i)
-    {
-        if (strCompNoCap(name, item[i].name))
-        {
-            return i;
-        }
-    }
 
-    return -1;
-}
-
-/**
- * Changes the quantity of an item specified by index
- * @param i: Index of the item to modify
- * @param addedQuantity: Amount to add to current quantity (can be negative to decrease)
- * @return: true if successful, false if index invalid or quantity would become negative
- */
-bool changeQuantity(const int &i, const int &addedQuantity)
-{
-    if (i >= Item::itemCount || i < 0)
-    {
-        return false;
-    }
-
-    if (item[i].quantity + addedQuantity > -1)
-    {
-        item[i].quantity += addedQuantity;
-
-        item[i].availability = item[i].quantity > 0;
-
-        // Save all changes to binary file
-        ofstream file("menu.bin", ios::binary | ios::trunc);
-
-        for (int j = 0; j < Item::itemCount; ++j)
-        {
-            file.write(reinterpret_cast<const char *>(&item[j]), sizeof(Item));
-        }
-
-        file.close();
-
-        return true;
-    }
-
-    return false;
-}
-
-/**
- * Changes the quantity of an item specified by name
- * @param name: Name of the item to modify
- * @param addedQuantity: Amount to add to current quantity
- * @return: true if successful, false if item not found or quantity invalid
- */
-bool changeQuantity(const char *name, const int &addedQuantity)
-{
-    int i = searchItem(name);
-
-    if (i == -1)
-    {
-        return false;
-    }
-
-    return changeQuantity(i, addedQuantity);
-}
-
-/**
- * Sets the price of an item specified by index
- * @param i: Index of the item to modify
- * @param price: New price value
- * @return: true if successful, false if index invalid
- */
-bool setPrice(const int &i, const double &price)
-{
-    if (i >= Item::itemCount || i < 0)
-    {
-        return false;
-    }
-
-    if (price < 0.0)
-    {
-        item[i].price = 0.0;
-    }
-    else
-    {
-        item[i].price = price;
-    }
-
-    // Save all changes to binary file
-    ofstream file("menu.bin", ios::binary | ios::trunc);
-
-    for (int j = 0; j < Item::itemCount; ++j)
-    {
-        file.write(reinterpret_cast<const char *>(&item[j]), sizeof(Item));
-    }
-
-    file.close();
-
-    return true;
-}
-
-/**
- * Sets the price of an item specified by name
- * @param name: Name of the item to modify
- * @param price: New price value
- * @return: true if successful, false if item not found
- */
-bool setPrice(const char *name, const double &price)
-{
-    int i = searchItem(name);
-
-    if (i == -1)
-    {
-        return false;
-    }
-
-    return setPrice(i, price);
-}
-
-/**
- * Adds a new item to the menu system
- * @param name: Name of the new item
- * @param price: Price of the new item
- * @param quantity: Initial quantity of the new item
- * @return: true if added successfully, false if item already exists
- */
-bool addNewItem(const char *name, const double &price, const int &quantity)
-{
-    int i = searchItem(name);
-
-    if (i != -1)
-    {
-        return false;
-    }
-
-    // Initialize the new item at the current count position
-    strncpy(item[Item::itemCount].name, name, sizeof(item[Item::itemCount].name) - 1);
-    item[Item::itemCount].name[sizeof(item[Item::itemCount].name) - 1] = '\0';
-    item[Item::itemCount].price = price;
-    item[Item::itemCount].quantity = (quantity < 0) ? 0 : quantity;
-    item[Item::itemCount].availability = quantity > 0;
-
-    // Save all items (including new one) to binary file
-    ofstream file("menu.bin", ios::binary | ios::trunc);
-    if (!file.is_open())
-        return false;
-
-    for (int j = 0; j <= Item::itemCount; ++j)
-    {
-        file.write(reinterpret_cast<const char *>(&item[j]), sizeof(Item));
-    }
-
-    file.close();
-
-    ++Item::itemCount;
-
-    return true;
-}
-
-/**
- * Removes an item from the system by index
- * @param i: Index of the item to remove
- * @return: true if removed successfully, false if index invalid
- */
-bool discardExistingItem(int i)
-{
-    if (i >= Item::itemCount || i < 0)
-    {
-        return false;
-    }
-
-    // Shift all subsequent items left to fill the gap
-    while (i + 1 < Item::itemCount)
-    {
-        item[i] = item[i + 1];
-        ++i;
-    }
-
-    // Clear the last item after shifting
-    strcpy(item[i].name, "");
-    item[i].price = 0.0;
-    item[i].quantity = 0;
-    item[i].availability = false;
-
-    --Item::itemCount;
-
-    // Save updated item list to binary file
-    ofstream file("menu.bin", ios::binary | ios::trunc);
-
-    for (int j = 0; j < Item::itemCount; ++j)
-    {
-        file.write(reinterpret_cast<const char *>(&item[j]), sizeof(Item));
-    }
-
-    file.close();
-
-    return true;
-}
-
-/**
- * Removes an item from the system by name
- * @param name: Name of the item to remove
- * @return: true if removed successfully, false if item not found
- */
-bool discardExistingItem(const char *name)
-{
-    int i = searchItem(name);
-
-    if (i == -1)
-    {
-        return false;
-    }
-
-    return discardExistingItem(i);
-}
 
 // ============================================================================
 // USER INTERFACE UTILITY FUNCTIONS
@@ -487,10 +495,10 @@ bool discardExistingItem(const char *name)
  */
 void loading(void)
 {
-    system("clear");
+    system("cls");
     cout << ITALIC YELLOW "Loading...\n" END;
     this_thread::sleep_for(chrono::milliseconds(800));
-    system("clear");
+    system("cls");
 }
 
 /**
@@ -499,7 +507,7 @@ void loading(void)
  */
 bool tryAgain(void)
 {
-    system("clear");
+    system("cls");
     cout << YELLOW "Invalid input. Do you want to try again?\n" END;
     cout << ITALIC "[Press " GREEN "y/Y" END ITALIC " for yes or " RED "any other character" END ITALIC " for no]\n" END;
 
@@ -699,7 +707,7 @@ void showAvailableSeats(Customer &cust)
 // booking seat
 bool bookSeat(Customer &cust, int t, int s)
 {
-    system("clear");
+    system("cls");
     if (t < 1 || t > Customer::maxTables || s < 1 || s > 8)
         return false;
     if (Customer::seatBooked[t - 1][s - 1])
@@ -714,7 +722,7 @@ bool bookSeat(Customer &cust, int t, int s)
 // order
 void orderItem(Customer &cust)
 {
-    system("clear");
+    system("cls");
     cout << BOLD UNDERLINE CYAN "Order Items by Name\n" END;
 
     if (Item::itemCount == 0)
@@ -758,7 +766,7 @@ void orderItem(Customer &cust)
         cout << ITALIC "\nEnter item name: " END;
         cin.getline(itemName, 50);
 
-        int idx = searchItem(itemName);
+        int idx = Manager::searchItem(itemName);
         // check eta ache kina
 
         if (idx == -1)
@@ -821,7 +829,7 @@ void orderItem(Customer &cust)
         file.write(reinterpret_cast<const char *>(&item[j]), sizeof(Item));
     }
     file.close();
-    system("clear");
+    system("cls");
 }
 
 // Cancel item
@@ -834,7 +842,7 @@ bool cancelItem(Customer &cust)
         return false;
     }
 
-    system("clear");
+    system("cls");
     cout << BOLD UNDERLINE CYAN "Cancel Order\n" END;
     cout << "\nYour current orders:\n";
 
@@ -911,7 +919,7 @@ void orderFromList(Customer &cust)
 {
     while (true)
     {
-        system("clear");
+        system("cls");
         cout << BOLD UNDERLINE CYAN "Available Items\n" END;
         if (Item::itemCount == 0)
         {
@@ -1122,7 +1130,7 @@ void payment(Customer &cust)
         return;
     }
 
-    system("clear");
+    system("cls");
     cout << BLINK BLUE "Choose payment method: \n" END;
     cout << BOLD CYAN "1. Cash\n2. Card\n" END;
 
@@ -1308,7 +1316,7 @@ void addNewItemInterface(void)
 
         cin.ignore();
 
-        if (addNewItem(name, price, quantity))
+        if (Manager::addNewItem(name, price, quantity))
         {
             cout << BLUE "Added a new item successfully." END;
             this_thread::sleep_for(chrono::milliseconds(1000));
@@ -1379,7 +1387,7 @@ void increaseQuantityInterface(void)
                 }
             }
 
-            if (!changeQuantity(name, quantity))
+            if (!Manager::changeQuantity(name, quantity))
             {
                 cout << RED "Increasing the quantity of the item failed.";
                 cout << "\nItem with this name does not exist.\n" END;
@@ -1423,7 +1431,7 @@ void increaseQuantityInterface(void)
                 }
             }
 
-            if (!changeQuantity(index, quantity))
+            if (!Manager::changeQuantity(index, quantity))
             {
                 cout << RED "Increasing the quantity of the item failed.";
                 cout << "\nItem with this index does not exist.\n" END;
@@ -1495,7 +1503,7 @@ void changePriceInterface(void)
             cout << ITALIC GREEN "Enter the new price: " END;
             cin >> price;
 
-            if (!setPrice(name, price))
+            if (!Manager::setPrice(name, price))
             {
                 cout << RED "Changing the price of the item failed.";
                 cout << "\nItem with this name does not exist.\n" END;
@@ -1523,7 +1531,7 @@ void changePriceInterface(void)
             cout << ITALIC GREEN "Enter the new price: " END;
             cin >> price;
 
-            if (!setPrice(index, price))
+            if (!Manager::setPrice(index, price))
             {
                 cout << RED "Changing the price of the item failed.";
                 cout << "\nItem with this index does not exist.\n" END;
@@ -1592,7 +1600,7 @@ void discardItemInterface(void)
             cout << ITALIC GREEN "Enter its name: " END;
             scanf("%[^\n]", name);
 
-            if (!discardExistingItem(name))
+            if (!Manager::discardExistingItem(name))
             {
                 cout << RED "Discarding the item failed.";
                 cout << "\nItem with this name does not exist.\n" END;
@@ -1618,7 +1626,7 @@ void discardItemInterface(void)
             cout << ITALIC GREEN "Enter its index: " END;
             cin >> index;
 
-            if (!discardExistingItem(index))
+            if (!Manager::discardExistingItem(index))
             {
                 cout << RED "Discarding the item failed.";
                 cout << "\nItem with this index does not exist.\n" END;
@@ -1852,10 +1860,10 @@ int main()
             break;
 
         case '2':
-            system("clear");
+            system("cls");
             cout << BOLD CYAN "Nice to have you. Have a great day!!" END;
             this_thread::sleep_for(chrono::milliseconds(1500));
-            system("clear");
+            system("cls");
 
             return 0;
             break;
@@ -1866,10 +1874,10 @@ int main()
                 continue;
             }
 
-            system("clear");
+            system("cls");
             cout << BOLD CYAN "Nice to have you. Have a great day!!" END;
             this_thread::sleep_for(chrono::milliseconds(1500));
-            system("clear");
+            system("cls");
 
             return 0;
             break;
